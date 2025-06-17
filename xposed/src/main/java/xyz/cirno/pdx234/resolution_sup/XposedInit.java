@@ -25,6 +25,8 @@ public class XposedInit implements IXposedHookLoadPackage{
             handleLoadSystemServer(lpparam);
         } else if (lpparam.packageName.equals("com.android.settings")) {
             handleLoadSettings(lpparam);
+        } else if (lpparam.packageName.equals("com.android.systemui")) {
+            handleLoadSystemUI(lpparam);
         }
     }
 
@@ -77,6 +79,22 @@ public class XposedInit implements IXposedHookLoadPackage{
                     var newinfo = new DisplayInfo(info);
                     newinfo.supportedModes = sortedModes;
                     param.setResult(newinfo);
+                }
+            }
+        });
+    }
+
+    private void handleLoadSystemUI(XC_LoadPackage.LoadPackageParam lpparam) {
+        final var navigationBarInflaterViewClass = XposedHelpers.findClass("com.android.systemui.navigationbar.NavigationBarInflaterView", lpparam.classLoader);
+        XposedHelpers.findAndHookMethod(navigationBarInflaterViewClass, "inflateLayout", String.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                String layout = (String) param.args[0];
+                if (layout.contains("back") && layout.contains("recent")) {
+                    layout = layout.replace("back", "__TEMP__");
+                    layout = layout.replace("recent", "back");
+                    layout = layout.replace("__TEMP__", "recent");
+                    param.args[0] = layout;
                 }
             }
         });
