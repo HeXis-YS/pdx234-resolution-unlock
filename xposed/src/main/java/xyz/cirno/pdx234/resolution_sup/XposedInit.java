@@ -21,15 +21,14 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class XposedInit implements IXposedHookLoadPackage{
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        if ("android".equals(lpparam.packageName)) {
+        if (lpparam.packageName.equals("android")) {
             handleLoadSystemServer(lpparam);
-        } else if ("com.android.settings".equals(lpparam.packageName)) {
+        } else if (lpparam.packageName.equals("com.android.settings")) {
             handleLoadSettings(lpparam);
         }
     }
 
     private void handleLoadSettings(XC_LoadPackage.LoadPackageParam lpparam) {
-
         if (Build.VERSION.SDK_INT >= 34) {
             final var removeClass = XposedHelpers.findClass("com.sonymobile.settings.preference.RemovePreference", lpparam.classLoader);
             final var targetKeyField = XposedHelpers.findField(removeClass, "mTargetKey");
@@ -40,89 +39,11 @@ public class XposedInit implements IXposedHookLoadPackage{
                     if (param.hasThrowable()) return;
                     final String mTargetKey = (String) targetKeyField.get(param.thisObject);
                     if ("screen_resolution".equals(mTargetKey)) {
-                        targetKeyField.set(param.thisObject, "screen_resolution_1145141919");
+                        targetKeyField.set(param.thisObject, "screen_resolution_");
                     }
                 }
             });
         }
-
-        if (Build.VERSION.SDK_INT == 33) {
-            unfuckAndroid13Release(lpparam);
-        }
-    }
-    private static void unfuckAndroid13Release(XC_LoadPackage.LoadPackageParam lpparam) {
-        var screenResolutionControllerClass = XposedHelpers.findClass("com.android.settings.display.ScreenResolutionController", lpparam.classLoader);
-        XposedHelpers.findAndHookMethod(screenResolutionControllerClass, "getAvailabilityStatus", new XC_MethodReplacement() {
-            @Override
-            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-                // com.android.settings.core.BasePreferenceController.AVAILABLE
-                return 0;
-            }
-        });
-        XposedHelpers.findAndHookMethod(screenResolutionControllerClass, "getDisplayWidth", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                if (param.hasThrowable()) return;
-                final var width = (int) param.getResult();
-                if (width == 1644) {
-                    param.setResult(1440);
-                } else if (width == 1096) {
-                    param.setResult(1080);
-                }
-            }
-        });
-        XposedHelpers.findAndHookMethod(screenResolutionControllerClass, "getSummary", new XC_MethodReplacement() {
-            @Override
-            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-                final var display = (Display) XposedHelpers.getObjectField(param.thisObject, "mDisplay");
-                final var mode = display.getMode();
-                return (CharSequence) String.format(Locale.ROOT, "%d×%d", mode.getPhysicalWidth(), mode.getPhysicalHeight());
-            }
-        });
-
-        final var screenResolutionFragmentClass = XposedHelpers.findClass("com.android.settings.display.ScreenResolutionFragment", lpparam.classLoader);
-        final var getPreferModeMethod = XposedHelpers.findMethodExact(screenResolutionFragmentClass, "getPreferMode", int.class);
-        XposedHelpers.findAndHookMethod(screenResolutionFragmentClass, "getKeyForResolution", int.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                final var width = (int) param.args[0];
-                if (width == 1096) {
-                    param.args[0] = 1080;
-                } else if (width == 1644) {
-                    param.args[0] = 1440;
-                }
-            }
-        });
-        XposedHelpers.findAndHookMethod(screenResolutionFragmentClass, "setDisplayMode", int.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                final var width = (int) param.args[0];
-                if (width == 1080) {
-                    param.args[0] = 1096;
-                } else if (width == 1440) {
-                    param.args[0] = 1644;
-                }
-            }
-
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                final var context = (Context) XposedHelpers.callMethod(param.thisObject, "getContext");
-                final var resolver = context.getContentResolver();
-                final var mode = (Display.Mode) getPreferModeMethod.invoke(param.thisObject, param.args[0]);
-                Settings.Global.putInt(resolver, "user_preferred_resolution_width", mode.getPhysicalWidth());
-                Settings.Global.putInt(resolver, "user_preferred_resolution_height", mode.getPhysicalHeight());
-                Settings.Global.putFloat(resolver, "user_preferred_refresh_rate", mode.getRefreshRate());
-            }
-        });
-
-        XposedHelpers.findAndHookMethod(screenResolutionFragmentClass, "onAttach", Context.class, new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                XposedHelpers.setObjectField(param.thisObject, "mScreenResolutionSummaries", new String[] {"1096×2560", "1644×3840"});
-                final var imgpref =  XposedHelpers.getObjectField(param.thisObject, "mImagePreference");
-                XposedHelpers.callMethod(imgpref, "setVisible", false);
-            }
-        });
     }
 
     private void handleLoadSystemServer(XC_LoadPackage.LoadPackageParam lpparam) {

@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'xyz.cirno.pdx234.resolution_sup'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "xyz.cirno.pdx234.resolution_sup"
-        minSdk 33
-        targetSdk 33
+        minSdk 34
+        targetSdk 34
         versionCode 3
         versionName "1.2"
 
